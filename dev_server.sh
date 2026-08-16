@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Ubuntu 24.04 LTS dev/server setup
+# Ubuntu 26.04 LTS ("Resolute Raccoon") dev/server setup
 # Installs: Docker, kubectl, PostgreSQL, MongoDB, Redis, Neo4j (graph DB), Go, Rust
 #
 # Usage: chmod +x setup-dev-server.sh && ./setup-dev-server.sh
@@ -43,11 +43,13 @@ rm /tmp/kubectl
 # PostgreSQL (official PGDG repo — gives latest stable, not the older Ubuntu one)
 # ---------------------------------------------------------------------------
 echo "==> Installing PostgreSQL"
+# Ubuntu 26.04 (resolute) is now natively supported by PGDG, so we use the
+# real codename via /etc/os-release instead of a hardcoded pin.
 curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
-echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | \
+echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | \
   sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
 sudo apt update
-sudo apt install -y postgresql postgresql-contrib
+sudo apt install -y postgresql-18 postgresql-client-18 postgresql-contrib
 
 sudo systemctl enable --now postgresql
 
@@ -55,9 +57,14 @@ sudo systemctl enable --now postgresql
 # MongoDB
 # ---------------------------------------------------------------------------
 echo "==> Installing MongoDB"
-curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg --dearmor -o /etc/apt/keyrings/mongodb.gpg
-echo "deb [signed-by=/etc/apt/keyrings/mongodb.gpg] http://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | \
-  sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list > /dev/null
+# MongoDB has not published a native repo for Ubuntu 26.04 "resolute" yet.
+# Confirmed current workaround: use the noble (24.04) repo, which works fine
+# since MongoDB's packages don't depend on kernel-level specifics.
+# Using MongoDB 8.0 (current recommended series; 7.0 is being phased out).
+MONGO_UBUNTU_CODENAME="noble"
+curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg --dearmor -o /etc/apt/keyrings/mongodb.gpg
+echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/mongodb.gpg] https://repo.mongodb.org/apt/ubuntu ${MONGO_UBUNTU_CODENAME}/mongodb-org/8.0 multiverse" | \
+  sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list > /dev/null
 sudo apt update
 sudo apt install -y mongodb-org
 
