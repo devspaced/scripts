@@ -59,13 +59,20 @@ sudo systemctl enable --now postgresql
 # ---------------------------------------------------------------------------
 echo "==> Installing MongoDB"
 # MongoDB has not published a native repo for Ubuntu 26.04 "resolute" yet.
-# Confirmed current workaround: use the noble (24.04) repo, which works fine
-# since MongoDB's packages don't depend on kernel-level specifics.
-# Using MongoDB 8.0 (current recommended series; 7.0 is being phased out).
-MONGO_UBUNTU_CODENAME="noble"
-curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg --dearmor -o /etc/apt/keyrings/mongodb.gpg
-echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/mongodb.gpg] https://repo.mongodb.org/apt/ubuntu ${MONGO_UBUNTU_CODENAME}/mongodb-org/8.0 multiverse" | \
-  sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list > /dev/null
+#
+# IMPORTANT: Pinned to MongoDB 7.0, NOT 8.0. MongoDB 8.0+ has a known crash-on-
+# startup bug on Linux kernel 6.19+ (which Ubuntu 26.04 ships) due to a
+# TCMalloc incompatibility — see https://jira.mongodb.org/browse/SERVER-121912.
+# This affects ALL install methods (apt, Docker, direct download), not just
+# this script. Revert to 8.0 once MongoDB ships a patched TCMalloc build.
+#
+# MongoDB 7.0 was only ever published for jammy (22.04), never noble (24.04),
+# so we must pin the codename to jammy here specifically (NOT noble, which is
+# what's used for other packages in this script that support 8.0+).
+MONGO_UBUNTU_CODENAME="jammy"
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg --dearmor -o /etc/apt/keyrings/mongodb.gpg
+echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/mongodb.gpg] https://repo.mongodb.org/apt/ubuntu ${MONGO_UBUNTU_CODENAME}/mongodb-org/7.0 multiverse" | \
+  sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list > /dev/null
 sudo apt update
 sudo apt install -y mongodb-org
 
