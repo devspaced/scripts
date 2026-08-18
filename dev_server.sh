@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Ubuntu 26.04 LTS ("Resolute Raccoon") dev/server setup
-# Installs: Docker, kubectl, PostgreSQL, MongoDB, Redis, Neo4j (graph DB), Go, Rust
+# Installs: Docker, kubectl, PostgreSQL, MongoDB, Redis, Neo4j (graph DB),
+#           Qdrant (vector DB), Go, Rust
 #
 # Usage: chmod +x setup-dev-server.sh && ./setup-dev-server.sh
 # Run as a regular user with sudo privileges (not as root).
@@ -95,6 +96,19 @@ sudo apt install -y neo4j
 sudo systemctl enable --now neo4j
 
 # ---------------------------------------------------------------------------
+# Qdrant (vector database) — run via Docker with a persistent volume
+# ---------------------------------------------------------------------------
+echo "==> Installing Qdrant (vector DB)"
+sudo mkdir -p /opt/qdrant/storage
+sudo docker run -d \
+  --name qdrant \
+  --restart unless-stopped \
+  -p 6333:6333 \
+  -p 6334:6334 \
+  -v /opt/qdrant/storage:/qdrant/storage \
+  qdrant/qdrant
+
+# ---------------------------------------------------------------------------
 # Go
 # ---------------------------------------------------------------------------
 echo "==> Installing Go"
@@ -127,4 +141,5 @@ psql --version || true
 mongod --version | head -1 || true
 redis-server --version || true
 neo4j --version || true
+docker exec qdrant qdrant --version 2>/dev/null || echo "qdrant: running (see docker ps)"
 echo "=================================================================="
