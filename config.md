@@ -36,7 +36,46 @@ sudo ufw allow 5432
 
 ---
 
+## pgvector (vector extension for PostgreSQL)
+
+Package installed alongside PostgreSQL: `postgresql-18-pgvector`
+
+**Enable per-database** (must be run inside each database that needs it):
+```bash
+sudo -u postgres psql -d mydb
+```
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+**Verify:**
+```sql
+SELECT * FROM pg_extension WHERE extname = 'vector';
+```
+
+**Example usage:**
+```sql
+CREATE TABLE items (
+    id SERIAL PRIMARY KEY,
+    embedding vector(3)
+);
+
+INSERT INTO items (embedding) VALUES ('[1,2,3]'), ('[4,5,6]');
+
+SELECT * FROM items ORDER BY embedding <=> '[3,1,2]' LIMIT 5;
+```
+Distance operators: `<=>` (cosine), `<->` (L2/Euclidean), `<#>` (inner product).
+
+**DataGrip:** no special config needed — once the extension is created, `vector` columns behave like any other column type in the console.
+
+---
+
 ## MongoDB
+
+> **Pinned to MongoDB 7.0** — MongoDB 8.0+ crashes on startup on Linux kernel 6.19+
+> (which Ubuntu 26.04 ships) due to a TCMalloc bug. Affects all install methods
+> (apt, Docker, direct download). See https://jira.mongodb.org/browse/SERVER-121912.
+> Revert to 8.0 once MongoDB ships a patched build.
 
 **Config file edited:** `/etc/mongod.conf`
 ```yaml
@@ -58,6 +97,24 @@ db.createUser({ user: "admin", pwd: "yourpassword", roles: ["root"] })
 sudo systemctl restart mongod
 sudo ufw allow 27017
 ```
+
+**If you already have a broken MongoDB 8.0 install** (won't start, logs show
+`SERVER-121912` / kernel 6.19 incompatibility), fix with:
+```bash
+sudo systemctl stop mongod
+sudo apt remove --purge 'mongodb-org*'
+sudo rm -f /etc/apt/sources.list.d/mongodb-org-8.0.list /etc/apt/sources.list.d/mongodb-org-7.0.list
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg --dearmor -o /etc/apt/keyrings/mongodb.gpg
+echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/mongodb.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+sudo apt update
+sudo apt install -y mongodb-org
+sudo systemctl enable --now mongod
+```
+Note 1: MongoDB 7.0 was only ever published for `jammy` (22.04), never `noble`
+(24.04) — using `noble` here gives a 404. This differs from Postgres/Docker/
+Redis elsewhere in this doc, which correctly use `noble`/`resolute`.
+Note 2: in zsh, `mongodb-org*` must be quoted or zsh's globbing will error
+with "no matches found" instead of passing it to apt.
 
 **DataGrip connection:**
 - Driver: MongoDB

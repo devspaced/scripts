@@ -7,15 +7,18 @@ This documents the local services installed via `setup-dev-server.sh` and how to
 | Service     | Port(s)         | Default Credentials                  |
 |-------------|------------------|----------------------------------------|
 | PostgreSQL  | 5432             | user: `postgres`, no password by default |
+| pgvector    | (uses PG's 5432) | extension inside PostgreSQL, not a separate service |
 | MongoDB     | 27017            | no auth by default                    |
 | Redis       | 6379             | no password by default                |
 | Neo4j       | 7474 (HTTP), 7687 (Bolt) | user: `neo4j`, password: `neo4j` (forced change on first login) |
+| Qdrant      | 6333 (HTTP), 6334 (gRPC) | no auth by default (runs as a Docker container) |
 | Docker      | —                | n/a (local daemon)                    |
 | kubectl     | —                | depends on cluster config             |
 
 Check all services are running:
 ```bash
 sudo systemctl status postgresql mongod redis-server neo4j
+docker ps   # check qdrant container is up
 ```
 
 ---
@@ -46,7 +49,42 @@ For remote access, edit:
 
 ---
 
+## pgvector
+
+A PostgreSQL extension for vector similarity search — not a separate service, runs inside Postgres on the same port (5432).
+
+Package: `postgresql-18-pgvector` (installed alongside PostgreSQL).
+
+**Enable it in a specific database:**
+```bash
+sudo -u postgres psql -d mydb
+```
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+**Example:**
+```sql
+CREATE TABLE items (
+    id SERIAL PRIMARY KEY,
+    embedding vector(3)
+);
+
+INSERT INTO items (embedding) VALUES ('[1,2,3]'), ('[4,5,6]');
+
+SELECT * FROM items ORDER BY embedding <=> '[3,1,2]' LIMIT 5;
+```
+`<=>` = cosine distance, `<->` = L2/Euclidean, `<#>` = inner product.
+
+Once created, `vector` columns work like any normal column in DataGrip — no extra setup needed there.
+
+---
+
 ## MongoDB
+
+> **Pinned to MongoDB 7.0**, not 8.0. MongoDB 8.0+ crashes on startup on Linux
+> kernel 6.19+ (which Ubuntu 26.04 ships) due to a TCMalloc bug — affects all
+> install methods, not just apt. See https://jira.mongodb.org/browse/SERVER-121912.
 
 No auth is enabled by default. To enable it:
 ```bash
@@ -123,6 +161,42 @@ bolt://neo4j:<newpassword>@localhost:7687
 
 ---
 
+## Qdrant (vector database)
+
+Runs as a Docker container, not a systemd service. Storage persists to `/opt/qdrant/storage` on the host.
+
+**Check it's running:**
+```bash
+docker ps                # should show a container named "qdrant"
+docker logs qdrant       # view logs
+```
+
+**Web dashboard:**
+```
+http://localhost:6333/dashboard
+```
+
+**REST API base URL:**
+```
+http://localhost:6333
+```
+
+**gRPC port:** `6334`
+
+No authentication is enabled by default — fine for local dev, but add an API key before exposing this beyond `localhost`:
+```bash
+docker run -d --name qdrant --restart unless-stopped \
+  -p 6333:6333 -p 6334:6334 \
+  -v /opt/qdrant/storage:/qdrant/storage \
+  -e QDRANT__SERVICE__API_KEY=yourkey \
+  qdrant/qdrant
+```
+(Remove and re-run the container with this env var added — Qdrant doesn't hot-reload config.)
+
+**Client libraries:** `qdrant-client` (Python), `@qdrant/js-client-rest` (JS/TS), or the `qdrant-client` crate (Rust). DataGrip has no native Qdrant driver since it isn't a SQL database — use the dashboard or a client library instead.
+
+---
+
 ## Docker
 
 ```bash
@@ -155,3 +229,4 @@ rustc --version
   sudo ufw allow <port>
   ```
 - MongoDB and PostgreSQL apt repos are pinned to the `noble` (24.04) or `resolute` (26.04) codename respectively — see `setup-dev-server.sh` comments if repos need updating later.
+- MongoDB is pinned to **7.0** (not 8.0) due to a kernel 6.19+ incompatibility on Ubuntu 26.04 — see the MongoDB section above.

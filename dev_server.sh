@@ -54,6 +54,9 @@ sudo apt install -y postgresql-18 postgresql-client-18 postgresql-contrib
 
 sudo systemctl enable --now postgresql
 
+echo "==> Installing pgvector extension"
+sudo apt install -y postgresql-18-pgvector
+
 # ---------------------------------------------------------------------------
 # MongoDB
 # ---------------------------------------------------------------------------
@@ -145,6 +148,7 @@ echo " Versions installed:"
 docker --version || true
 kubectl version --client || true
 psql --version || true
+dpkg -l | grep pgvector || true
 mongod --version | head -1 || true
 redis-server --version || true
 neo4j --version || true
