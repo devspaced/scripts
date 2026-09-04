@@ -126,6 +126,7 @@ PING   # expect PONG
 
 To set a password, edit `/etc/redis/redis.conf`:
 ```
+bind 0.0.0.0
 requirepass yourpassword
 ```
 ```bash
